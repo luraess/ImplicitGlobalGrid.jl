@@ -1,6 +1,22 @@
 import MPI
-using CUDA
-using AMDGPU
+using Preferences
+const backends = @load_preference("backends", String[])
+function enable_backend!(name::String)
+    push!(backends, name)
+    @set_preferences!("backends" => backends)
+end
+function disable_backend!(name::String)
+    filter!(b -> b != name, backends)
+    @set_preferences!("backends" => backends)
+end
+const ENABLE_CUDA = "cuda" in backends
+const ENABLE_AMDGPU = "amdgpu" in backends
+if ENABLE_CUDA
+    using CUDA
+end
+if ENABLE_AMDGPU
+    using AMDGPU
+end
 using Base.Threads
 using LoopVectorization
 
@@ -18,8 +34,12 @@ let
 end
 
 function __init__()
-    set_cuda_functional(CUDA.functional())
-    set_amdgpu_functional(AMDGPU.functional())
+    @static if ENABLE_CUDA
+        set_cuda_functional(CUDA.functional())
+    end
+    @static if ENABLE_AMDGPU
+        set_amdgpu_functional(AMDGPU.functional())
+    end
 end
 
 
@@ -40,7 +60,19 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 
 const GGInt        = Cint
 const GGNumber     = Number
+@static if ENABLE_CUDA && ENABLE_AMDGPU
 const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGGPUArray{T,N} = Union{CuArray{T,N}, ROCArray{T,N}}
+elseif ENABLE_CUDA
+const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}
+const GGGPUArray{T,N} = CuArray{T,N}
+elseif ENABLE_AMDGPU
+const GGArray{T,N} = Union{Array{T,N}, ROCArray{T,N}}
+const GGGPUArray{T,N} = ROCArray{T,N}
+else
+const GGArray{T,N} = Array{T,N}
+const GGGPUArray{T,N} = Union{}
+end
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -114,16 +146,20 @@ is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this func
 ##---------------
 ## CUDA functions
 
+@static if ENABLE_CUDA
 function register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
     rbuf = CUDA.Mem.register(CUDA.Mem.Host, pointer(buf), sizeof(buf), CUDA.Mem.HOSTREGISTER_DEVICEMAP);
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
+end
 end
 
 
 ##---------------
 ## AMDGPU functions
 
+@static if ENABLE_AMDGPU
 function register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
     return unsafe_wrap(ROCArray,pointer(buf),size(buf)), pointer(buf);
+end
 end

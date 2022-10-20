@@ -292,6 +292,7 @@ let
     end
 
 
+    @static if ENABLE_CUDA
     # (CUDA functions)
 
     function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
@@ -301,8 +302,10 @@ let
     function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
         return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
+    end # @static if ENABLE_CUDA
 
 
+    @static if ENABLE_AMDGPU
     # (AMDGPU functions)
 
     function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
@@ -312,16 +315,18 @@ let
     function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
         return view(rocrecvbufs_raw[i][n]::ROCVector{T},1:prod(halosize(dim,A)));
     end
+    end # @static if ENABLE_AMDGPU
 
 
+    @static if ENABLE_CUDA || ENABLE_AMDGPU
     # (GPU functions)
 
     #TODO: see if remove T here and in other cases for CuArray, ROCArray or Array (but then it does not verify that CuArray/ROCArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::GGGPUArray{T}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::GGGPUArray{T}) where T <: GGNumber
         return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
@@ -334,6 +339,7 @@ let
     get_curecvbufs_raw()  = deepcopy(curecvbufs_raw)
     get_rocsendbufs_raw() = deepcopy(rocsendbufs_raw)
     get_rocrecvbufs_raw() = deepcopy(rocrecvbufs_raw)
+    end # @static if ENABLE_CUDA || ENABLE_AMDGPU
 end
 
 
@@ -403,6 +409,7 @@ let
 end
 
 
+@static if ENABLE_CUDA
 # (CUDA functions)
 
 function allocate_custreams(fields::GGArray...)
@@ -465,8 +472,10 @@ let
         end
     end
 end
+end # @static if ENABLE_CUDA
 
 
+@static if ENABLE_AMDGPU
 # (AMDGPU functions)
 
 function allocate_rocqueues(fields::GGArray...)
@@ -573,6 +582,7 @@ let
     end
 
 end
+end # @static if ENABLE_AMDGPU
 
 
 # (CPU/GPU functions)
@@ -633,6 +643,7 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
 end
 
 
+@static if ENABLE_CUDA
 # (CUDA functions)
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
@@ -684,8 +695,10 @@ function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::A
         async=true, stream=custream
     )
 end
+end # @static if ENABLE_CUDA
 
 
+@static if ENABLE_AMDGPU
 # (AMDGPU functions)
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
@@ -741,6 +754,7 @@ function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::
     )
     return nothing
 end
+end # @static if ENABLE_AMDGPU
 
 
 ##------------------------------
@@ -820,18 +834,22 @@ function memcopy_loopvect!(dst::AbstractArray{T}, src::AbstractArray{T}) where T
 end
 
 
+@static if ENABLE_CUDA
 # (CUDA functions)
 
 function gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
     @inbounds CUDA.copyto!(dst, src)
 end
+end # @static if ENABLE_CUDA
 
 
+@static if ENABLE_AMDGPU
 # (AMDGPU functions)
 
 function gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
     @inbounds AMDGPU.copyto!(dst, src)
 end
+end # @static if ENABLE_AMDGPU
 
 
 ##-------------------------------------------
