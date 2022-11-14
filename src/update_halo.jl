@@ -123,7 +123,9 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
+                    @static if ENABLE_CUDA
                     if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                    end
                     # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
                 end
             end
@@ -134,8 +136,12 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
+                    @static if ENABLE_CUDA
                     if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                    end
+                    @static if ENABLE_AMDGPU
                     if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   AMDGPU.Mem.unlock(bufs[i][n]); bufs[i][n] = []; end
+                    end
                 end
             end
         end

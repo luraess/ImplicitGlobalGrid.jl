@@ -6,12 +6,16 @@ push!(LOAD_PATH, "../src")
 using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
-using CUDA
-using AMDGPU
+if GG.ENABLE_CUDA
+    using CUDA
+end
+if GG.ENABLE_AMDGPU
+    using AMDGPU
+end
 import ImplicitGlobalGrid: @require, longnameof
 
-test_cuda = CUDA.functional()
-test_amdgpu = AMDGPU.functional()
+test_cuda = GG.ENABLE_CUDA && CUDA.functional()
+test_amdgpu = GG.ENABLE_AMDGPU && AMDGPU.functional()
 
 array_types          = ["CPU"]
 gpu_array_types      = []

@@ -139,8 +139,16 @@ any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
 any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
 any_rocarray(fields::GGArray...)       = any([is_rocarray(A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
+if ENABLE_CUDA
 is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+else
+is_cuarray(A::GGArray)                 = false
+end
+if ENABLE_AMDGPU
 is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+else
+is_rocarray(A::GGArray)                = false
+end
 
 
 ##---------------
